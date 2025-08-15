@@ -7,7 +7,11 @@ export const redisClient = createClient({
   password: envVars.REDIS_PASSWORD,
   socket: {
     host: envVars.REDIS_HOST,
+    // host: '54.82.91.90',
+    family: 4,
+    reconnectStrategy: retries => Math.min(retries * 50, 5000),
     port: Number(envVars.REDIS_PORT),
+    timeout: 10000,
   },
 });
 

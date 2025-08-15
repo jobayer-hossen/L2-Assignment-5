@@ -141,3 +141,15 @@ export const updateRideStatusZodSchema = z.object({
         })
         .optional(),
 });
+
+
+export const rideFeedbackZodSchema = z.object({
+  feedback: z.string(),
+  rating: z
+    .number({
+      required_error: "Rating is required",
+      invalid_type_error: "Rating must be a number",
+    })
+    .min(1, "Rating must be at least 1")
+    .max(5, "Rating must be at most 5"),
+});

@@ -36,22 +36,10 @@ const requestForRide = catchAsync(async (req: Request, res: Response) => {
 //   });
 // });
 
-const getMe = catchAsync(async (req: Request, res: Response) => {
+const getAllRidesForRider = catchAsync(async (req: Request, res: Response) => {
     const decodedToken = req.user as JwtPayload;
     const query = req.query as Record<string, string>;
-    const rides = await rideService.getMe(query, decodedToken);
-
-    sendResponse(res, {
-        success: true,
-        statusCode: httpStatus.OK,
-        message: "Ride Retrieve Successfully",
-        data: rides,
-    });
-});
-const getAllRides = catchAsync(async (req: Request, res: Response) => {
-    const decodedToken = req.user as JwtPayload;
-    const query = req.query as Record<string, string>;
-    const rides = await rideService.getAllRides(query, decodedToken);
+    const rides = await rideService.getAllRidesForRider(query, decodedToken);
 
     sendResponse(res, {
         success: true,
@@ -61,9 +49,56 @@ const getAllRides = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
-export const RideControllers = {
+const getAllRidesForAdminAndDriver = catchAsync(async (req: Request, res: Response) => {
+    const decodedToken = req.user as JwtPayload;
+    const query = req.query as Record<string, string>;
+    const rides = await rideService.getAllRidesForAdminAndDriver(query, decodedToken);
+
+    sendResponse(res, {
+        success: true,
+        statusCode: httpStatus.OK,
+        message: "Ride Retrieve Successfully",
+        data: rides,
+    });
+});
+
+const getSingleRideForRider = catchAsync(async (req: Request, res: Response) => {
+  const rideId = req.params.id
+  const riderInfo = req.user as JwtPayload
+  const riderId = riderInfo.userId
+  const result = await rideService.getSingleRideForRider(rideId, riderId)
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.CREATED,
+    message: "Your Ride Information Retrieved!",
+    data: result.data
+  });
+
+});
+
+
+const giveFeedbackAndRating = catchAsync(async (req: Request, res: Response) => {
+  const { rideId } = req.params;
+  const { feedback, rating } = req.body;
+  const user = req.user as JwtPayload
+  const userId = user.userId
+
+  const result = await rideService.giveFeedbackAndRating(rideId, userId, feedback, rating);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Feedback submitted successfully",
+    data: result,
+  });
+});
+
+export const rideControllers = {
     requestForRide,
     //   updateRideStatus,
-    getMe,
-    getAllRides,
+    getAllRidesForRider,
+    getAllRidesForAdminAndDriver,
+    getSingleRideForRider,
+    giveFeedbackAndRating
 };

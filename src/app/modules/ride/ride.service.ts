@@ -142,27 +142,24 @@ const requestForRide = async (payload: Partial<IRide>, decodedToken: JwtPayload)
 //     }
 // };
 
-const getMe = async (
-    query: Record<string, string>,
-    decodedToken: JwtPayload
-) => {
+
+
+const getAllRidesForRider = async (query: Record<string, string>, decodedToken: JwtPayload) => {
     const queryBuilder = new QueryBuilder(
         Ride.find({ riderId: decodedToken.userId }),
         query
     );
-    const rides = await queryBuilder.filter().sort().fields().paginate();
+    const allRides = await queryBuilder.filter().sort().fields().paginate();
     const [data, meta] = await Promise.all([
-        rides.build(),
+        allRides.build(),
         queryBuilder.getMeta(),
     ]);
     return { meta: meta, data: data };
 };
-const getAllRides = async (
-    query: Record<string, string>,
-    decodedToken: JwtPayload
-) => {
-    // Admin/Super Admin Section
-    if (decodedToken.role !== Role.DRIVER) {
+
+const getAllRidesForAdminAndDriver = async (query: Record<string, string>, decodedToken: JwtPayload) => {
+    // Admin/Super Admin finder
+    if (decodedToken.role === Role.ADMIN || Role.SUPER_ADMIN) {
         const queryBuilder = new QueryBuilder(Ride.find(), query);
         const rides = await queryBuilder.filter().sort().fields().paginate();
         const [data, meta] = await Promise.all([
@@ -173,7 +170,6 @@ const getAllRides = async (
     }
 
     // Driver section start
-    // ei driver je je ride er
     const queryBuilder = new QueryBuilder(
         Ride.find({ driverId: decodedToken.userId }),
         query
@@ -187,9 +183,86 @@ const getAllRides = async (
     // Driver section end
 };
 
+const getSingleRideForRider = async (rideId: string, riderId: string) => {
+
+    const singleRide = await Ride.findById(rideId)
+
+    if (!singleRide) {
+        throw new AppError(httpStatus.NOT_FOUND, "Ride Information Not Found")
+    }
+
+
+    if (String(singleRide.riderId) !== riderId) {
+        throw new AppError(httpStatus.BAD_REQUEST, "This Ride Is Not Yours!")
+    }
+
+    return {
+        data: singleRide
+    }
+}
+
+
+// feedback
+
+const giveFeedbackAndRating = async (rideId: string, userId: string, feedback: string, rating: number) => {
+    try {
+        const ride = await Ride.findById(rideId);
+        if (!ride) throw new AppError(httpStatus.NOT_FOUND, "Ride not found");
+
+        if (!ride.driverId) throw new AppError(httpStatus.BAD_REQUEST, "No driver assigned to this ride");
+
+        if (ride.riderId.toString() !== userId) {
+            throw new AppError(httpStatus.BAD_REQUEST, "You are not authorized to rate this ride");
+        }
+
+        if (ride.rating) throw new AppError(httpStatus.BAD_REQUEST, "Feedback already submitted");
+
+        if (ride.rideStatus !== IRideStatus.COMPLETED) {
+            throw new AppError(httpStatus.BAD_REQUEST, "Feedback allowed only for completed rides");
+        }
+
+        if (rating < 1 || rating > 5) {
+            throw new AppError(httpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
+        }
+
+        const rider = await User.findById(ride.riderId);
+        if (!rider || rider.isBlocked === IsActive.BLOCKED) {
+            throw new AppError(httpStatus.BAD_REQUEST, "User is not allowed to submit feedback");
+        }
+
+        ride.feedback = feedback;
+        ride.rating = rating;
+        await ride.save();
+
+        const ratedRides = await Ride.find({
+            driverId: ride.driverId,
+            rating: { $exists: true },
+        });
+
+        const totalRatings = ratedRides.length;
+        const totalSum = ratedRides.reduce((sum, r) => sum + (r.rating || 0), 0);
+        const averageRating = totalRatings === 0 ? 0 : parseFloat((totalSum / totalRatings).toFixed(1));
+
+        await Driver.findByIdAndUpdate(ride.driverId, { rating: averageRating });
+
+        return {
+            rideId: ride._id,
+            driverId: ride.driverId,
+            averageRating,
+        };
+    } catch (error) {
+        console.error("Error giving feedback:", error);
+        throw error;
+    }
+};
+
+
+
 export const rideService = {
     requestForRide,
     // updateRideStatus,
-    getMe,
-    getAllRides,
+    getAllRidesForRider,
+    getAllRidesForAdminAndDriver,
+    getSingleRideForRider,
+    giveFeedbackAndRating
 };
