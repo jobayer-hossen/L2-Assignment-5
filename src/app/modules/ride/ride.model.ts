@@ -27,7 +27,6 @@ const rideSchema = new Schema<IRide>(
         },
 
         fare: { type: Number, },
-
         distance: { type: Number },
 
         timestampsLog: {
@@ -42,10 +41,7 @@ const rideSchema = new Schema<IRide>(
             cancelledAt: Date,
         },
 
-        feedback: {
-            type: String
-        },
-        
+        feedback: { type: String },
         rating: { type: Number }
     },
     {

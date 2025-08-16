@@ -9,7 +9,6 @@ import { IsActive, Role } from "../modules/user/user.interface";
 import { Strategy as LocalStrategy } from "passport-local";
 
 
-// configures Passport.js for authentication.
 passport.use(
     new LocalStrategy(
         {
@@ -57,12 +56,12 @@ passport.use(
 passport.use(
     new GoogleStrategy(
         {
-            // options
+            
             clientID: envVars.GOOGLE_CLIENT_ID,
             clientSecret: envVars.GOOGLE_CLIENT_SECRET,
             callbackURL: envVars.GOOGLE_CALLBACK_URL
         }, async (accessToken: string, refreshToken: string, profile: Profile, done: VerifyCallback) => {
-            // verify
+          
             try {
 
                 const email = profile.emails?.[0].value

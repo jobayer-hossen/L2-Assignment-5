@@ -29,6 +29,7 @@ export interface IRide {
     requestedAt: Date;
     acceptedAt?: Date;
     pickedUpAt?: Date;
+    inTransitAt?: Date;
     completedAt?: Date;
     cancelledAt?: Date;
   };

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { checkAuth } from "../../middlewares/checkAuth";
 import { Role } from "../user/user.interface";
-import { createRideZodSchema, rideFeedbackZodSchema } from "./ride.validation";
+import { cancelRideZodSchema, createRideZodSchema, rideFeedbackZodSchema, updateRideStatusZodSchema } from "./ride.validation";
 import { validateRequest } from "../../middlewares/validateRequest";
 import { rideControllers } from "./ride.controller";
 
@@ -16,13 +16,18 @@ router.post(
 );
 
 router.get(
-  "/all-ride-admin-driver",
-  checkAuth(Role.DRIVER, Role.ADMIN, Role.SUPER_ADMIN),
-  rideControllers.getAllRidesForAdminAndDriver
+  "/all-ride-admin",
+  checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
+  rideControllers.getAllRidesForAdmin
 );
 
 router.get("/all-ride-riders", checkAuth(Role.RIDER), rideControllers.getAllRidesForRider);
 
+router.get(
+  "/available-ride-driver",
+  checkAuth(Role.DRIVER),
+  rideControllers.getAvailableRides
+);
 
 
 router.get("/my-ride/:id",
@@ -30,13 +35,25 @@ router.get("/my-ride/:id",
   rideControllers.getSingleRideForRider
 )
 
-// router.patch(
-//   "/:id/status",
-//   checkAuth(...Object.values(Role)),
-//   validRequest(updateRideStatusZodSchema),
-//   RideControllers.updateRideStatus
-// );
+router.patch(
+  "/accept/:rideId",
+  checkAuth(Role.DRIVER),
+  rideControllers.driverAcceptRide
+);
 
+router.patch(
+  "/status/:rideId",
+  checkAuth(Role.DRIVER, Role.ADMIN, Role.SUPER_ADMIN),
+  validateRequest(updateRideStatusZodSchema),
+  rideControllers.updateRideStatus
+);
+
+router.patch(
+  "/cancel/:rideId",
+  checkAuth(...Object.values(Role)),
+  validateRequest(cancelRideZodSchema),
+  rideControllers.cancelRide
+);
 
 router.post(
   "/feedback/:rideId",

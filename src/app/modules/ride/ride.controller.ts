@@ -5,61 +5,97 @@ import httpStatus from "http-status-codes";
 import { rideService } from "./ride.service";
 import { JwtPayload } from "jsonwebtoken";
 
-// requestr for ride
-const requestForRide = catchAsync(async (req: Request, res: Response) => {
-    const decodedToken = req.user as JwtPayload;
-    const result = await rideService.requestForRide(req.body, decodedToken);
 
-    sendResponse(res, {
-        success: true,
-        statusCode: httpStatus.CREATED,
-        message: "Ride requested successfully",
-        data: result,
-    });
+const requestForRide = catchAsync(async (req: Request, res: Response) => {
+  const decodedToken = req.user as JwtPayload;
+  const result = await rideService.requestForRide(req.body, decodedToken);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.CREATED,
+    message: "Ride requested successfully",
+    data: result,
+  });
 });
 
-// const updateRideStatus = catchAsync(async (req: Request, res: Response) => {
-//   const id = req.params.id;
-//   const decodedToken = req.user as JwtPayload;
-
-//   const updatedRideRequest = await rideService.updateRideStatus(
-//     id,
-//     req.body,
-//     decodedToken
-//   );
-
-//   sendResponse(res, {
-//     success: true,
-//     statusCode: httpStatus.OK,
-//     message: "Ride Updated Successfully",
-//     data: updatedRideRequest,
-//   });
-// });
 
 const getAllRidesForRider = catchAsync(async (req: Request, res: Response) => {
-    const decodedToken = req.user as JwtPayload;
-    const query = req.query as Record<string, string>;
-    const rides = await rideService.getAllRidesForRider(query, decodedToken);
+  const decodedToken = req.user as JwtPayload;
+  const query = req.query as Record<string, string>;
+  const rides = await rideService.getAllRidesForRider(query, decodedToken);
 
-    sendResponse(res, {
-        success: true,
-        statusCode: httpStatus.OK,
-        message: "Ride Retrieve Successfully",
-        data: rides,
-    });
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Ride Retrieve Successfully",
+    data: rides,
+  });
 });
 
-const getAllRidesForAdminAndDriver = catchAsync(async (req: Request, res: Response) => {
-    const decodedToken = req.user as JwtPayload;
-    const query = req.query as Record<string, string>;
-    const rides = await rideService.getAllRidesForAdminAndDriver(query, decodedToken);
+const getAvailableRides = catchAsync(async (req: Request, res: Response) => {
+  const decodedToken = req.user as JwtPayload;
+  const query = req.query as Record<string, string>;
+  const rides = await rideService.getAvailableRides(query, decodedToken);
 
-    sendResponse(res, {
-        success: true,
-        statusCode: httpStatus.OK,
-        message: "Ride Retrieve Successfully",
-        data: rides,
-    });
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Available rides retrieved successfully",
+    data: rides,
+  });
+});
+
+const getAllRidesForAdmin = catchAsync(async (req: Request, res: Response) => {
+  const decodedToken = req.user as JwtPayload;
+  const query = req.query as Record<string, string>;
+  const rides = await rideService.getAllRidesForAdmin(query, decodedToken);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Ride Retrieve Successfully",
+    data: rides,
+  });
+});
+
+const driverAcceptRide = catchAsync(async (req: Request, res: Response) => {
+  const { rideId } = req.params;
+  const decodedToken = req.user as JwtPayload;
+  const result = await rideService.driverAcceptRide(rideId, decodedToken);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Ride accepted successfully",
+    data: result,
+  });
+});
+
+const updateRideStatus = catchAsync(async (req: Request, res: Response) => {
+  const { rideId } = req.params;
+  const decodedToken = req.user as JwtPayload;
+  const result = await rideService.updateRideStatus(rideId, req.body, decodedToken);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Ride status updated successfully",
+    data: result,
+  });
+});
+
+const cancelRide = catchAsync(async (req: Request, res: Response) => {
+  const { rideId } = req.params;
+  const decodedToken = req.user as JwtPayload;
+  const { cancelReason } = req.body;
+  const result = await rideService.cancelRide(rideId, cancelReason, decodedToken);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Ride cancelled successfully",
+    data: result,
+  });
 });
 
 const getSingleRideForRider = catchAsync(async (req: Request, res: Response) => {
@@ -95,10 +131,14 @@ const giveFeedbackAndRating = catchAsync(async (req: Request, res: Response) => 
 });
 
 export const rideControllers = {
-    requestForRide,
-    //   updateRideStatus,
-    getAllRidesForRider,
-    getAllRidesForAdminAndDriver,
-    getSingleRideForRider,
-    giveFeedbackAndRating
+  requestForRide,
+  getAllRidesForRider,
+  getAllRidesForAdmin,
+  getSingleRideForRider,
+  giveFeedbackAndRating,
+
+  getAvailableRides,
+  driverAcceptRide,
+  updateRideStatus,
+  cancelRide
 };

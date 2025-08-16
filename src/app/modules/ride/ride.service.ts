@@ -5,14 +5,9 @@ import { User } from "../user/user.model";
 import { JwtPayload } from "jsonwebtoken";
 import { IsActive, Role } from "../user/user.interface";
 import { QueryBuilder } from "../../utils/QueryBuilder";
-// import {
-//     handleAdminRideStatus,
-//     handleDriverRideStatus,
-//     handleRiderRideStatus,
-// } from "../../helpers/rideHelpers";
 import { Driver } from "../driver/driver.model";
-import { IDriver } from "../driver/driver.interface";
 import { Ride } from "./ride.model";
+import { Types } from "mongoose";
 
 
 const requestForRide = async (payload: Partial<IRide>, decodedToken: JwtPayload) => {
@@ -72,77 +67,6 @@ const requestForRide = async (payload: Partial<IRide>, decodedToken: JwtPayload)
     return rideCreated;
 };
 
-// const updateRideStatus = async (
-//     id: string,
-//     payload: IUpdateRideStatusPayload,
-//     decodedToken: JwtPayload
-// ) => {
-//     if (!id || !payload || !decodedToken) {
-//         throw new AppError(
-//             httpStatus.BAD_REQUEST,
-//             "Something Went Wrong, in your data"
-//         );
-//     }
-//     const ride = await Ride.findById(id);
-//     if (!ride) {
-//         throw new AppError(httpStatus.NOT_FOUND, "Ride not found");
-//     }
-//     if (ride.rideStatus === payload.status) {
-//         throw new AppError(httpStatus.CONFLICT, "Please provide different status");
-//     }
-
-//     // Rider Section
-//     if (decodedToken.role === Role.RIDER) {
-//         await handleRiderRideStatus(ride, payload, decodedToken);
-//         const updatedRide = await ride.save();
-//         return updatedRide;
-//     }
-//     // Driver Section
-//     if (decodedToken.role === Role.DRIVER) {
-//         if (ride.rideStatus === IRideStatus.COMPLETED) {
-//             throw new AppError(
-//                 httpStatus.BAD_REQUEST,
-//                 "This ride has been completed."
-//             );
-//         }
-
-//         let driver: IDriver | null = null;
-
-//         if (!ride.driverId) {
-//             if (payload.status !== IRideStatus.ACCEPTED) {
-//                 throw new AppError(
-//                     httpStatus.BAD_REQUEST,
-//                     "No driver assigned to this ride yet. Please provide first status as accepted."
-//                 );
-//             }
-//             driver = await Driver.findOne({ userId: decodedToken.userId });
-//             if (!driver) {
-//                 throw new AppError(httpStatus.NOT_FOUND, "Driver not found");
-//             }
-//         } else {
-//             driver = await Driver.findOne({ userId: ride.driverId });
-//             if (!driver) {
-//                 throw new AppError(httpStatus.NOT_FOUND, "Driver not found");
-//             }
-//         }
-
-//         await handleDriverRideStatus(driver, ride, payload, decodedToken);
-
-//         const updatedRide = await ride.save();
-//         return updatedRide;
-//     }
-
-//     if (
-//         decodedToken.role === Role.ADMIN ||
-//         decodedToken.role === Role.SUPER_ADMIN
-//     ) {
-//         await handleAdminRideStatus(ride, payload, decodedToken);
-//         const updatedRide = await ride.save();
-//         return updatedRide;
-//     }
-// };
-
-
 
 const getAllRidesForRider = async (query: Record<string, string>, decodedToken: JwtPayload) => {
     const queryBuilder = new QueryBuilder(
@@ -157,8 +81,147 @@ const getAllRidesForRider = async (query: Record<string, string>, decodedToken: 
     return { meta: meta, data: data };
 };
 
-const getAllRidesForAdminAndDriver = async (query: Record<string, string>, decodedToken: JwtPayload) => {
-    // Admin/Super Admin finder
+
+const getAvailableRides = async (query: Record<string, string>, decodedToken: JwtPayload) => {
+
+    const driver = await Driver.findOne({ userId: decodedToken.userId });
+    if (!driver) {
+        throw new AppError(httpStatus.NOT_FOUND, "Driver not found");
+    }
+
+    if (driver.driverStatus !== "APPROVED") {
+        throw new AppError(httpStatus.FORBIDDEN, "Driver not approved yet");
+    }
+
+    const queryBuilder = new QueryBuilder(
+        Ride.find({
+            rideStatus: IRideStatus.REQUESTED,
+            driverId: { $exists: false }
+        }).populate('riderId', 'name email phone'),
+        query
+    );
+
+    const rides = await queryBuilder.filter().sort().fields().paginate();
+    const [data, meta] = await Promise.all([
+        rides.build(),
+        queryBuilder.getMeta(),
+    ]);
+
+    return { meta: meta, data: data };
+};
+
+const driverAcceptRide = async (rideId: string, decodedToken: JwtPayload) => {
+    const driver = await Driver.findOne({ userId: decodedToken.userId });
+    if (!driver) {
+        throw new AppError(httpStatus.NOT_FOUND, "Driver not found");
+    }
+
+    if (driver.driverStatus !== "APPROVED") {
+        throw new AppError(httpStatus.FORBIDDEN, "Driver not approved");
+    }
+
+    const activeRide = await Ride.findOne({
+        driverId: driver._id,
+        rideStatus: {
+            $in: [IRideStatus.ACCEPTED, IRideStatus.PICKED_UP, IRideStatus.IN_TRANSIT]
+        }
+    });
+
+    if (activeRide) {
+        throw new AppError(httpStatus.CONFLICT, "Driver already has an active ride");
+    }
+
+    const ride = await Ride.findById(rideId);
+
+    if (!ride) {
+        throw new AppError(httpStatus.NOT_FOUND, "Ride not found");
+    }
+
+    if (ride.rideStatus !== IRideStatus.REQUESTED) {
+        throw new AppError(httpStatus.BAD_REQUEST, "Ride is not available for acceptance");
+    }
+
+    if (ride.driverId) {
+        throw new AppError(httpStatus.CONFLICT, "Ride already accepted by another driver");
+    }
+
+    ride.driverId = driver._id;
+    ride.rideStatus = IRideStatus.ACCEPTED;
+    ride.timestampsLog.acceptedAt = new Date();
+
+    await ride.save();
+
+    return await Ride.findById(rideId)
+        .populate('riderId', 'name email phone')
+        .populate('driverId');
+};
+
+
+const updateRideStatus = async (rideId: string, payload: { rideStatus: IRideStatus; cancelReason?: string }, decodedToken: JwtPayload) => {
+    const { rideStatus, cancelReason } = payload;
+
+    const ride = await Ride.findById(rideId);
+    if (!ride) throw new AppError(httpStatus.NOT_FOUND, "Ride not found");
+
+    const role = decodedToken.role;
+
+    if (role !== Role.ADMIN && role !== Role.SUPER_ADMIN && role !== Role.DRIVER) {
+        throw new AppError(httpStatus.FORBIDDEN, "Unauthorized to update ride status");
+    }
+
+    if (role === Role.DRIVER) {
+        const driver = await Driver.findOne({ userId: decodedToken.userId });
+        if (!driver || ride.driverId?.toString() !== driver._id?.toString()) {
+            throw new AppError(httpStatus.FORBIDDEN, "You can only update your assigned rides");
+        }
+    }
+
+    if (ride.rideStatus === IRideStatus.REQUESTED) {
+        if (rideStatus !== IRideStatus.ACCEPTED && rideStatus !== IRideStatus.CANCELLED) {
+            throw new AppError(httpStatus.BAD_REQUEST, `Cannot transition from REQUESTED to ${rideStatus}`);
+        }
+    } else if (ride.rideStatus === IRideStatus.ACCEPTED) {
+        if (rideStatus !== IRideStatus.PICKED_UP && rideStatus !== IRideStatus.CANCELLED) {
+            throw new AppError(httpStatus.BAD_REQUEST, `Cannot transition from ACCEPTED to ${rideStatus}`);
+        }
+    } else if (ride.rideStatus === IRideStatus.PICKED_UP) {
+        if (rideStatus !== IRideStatus.IN_TRANSIT && rideStatus !== IRideStatus.CANCELLED) {
+            throw new AppError(httpStatus.BAD_REQUEST, `Cannot transition from PICKED_UP to ${rideStatus}`);
+        }
+    } else if (ride.rideStatus === IRideStatus.IN_TRANSIT) {
+        if (rideStatus !== IRideStatus.COMPLETED && rideStatus !== IRideStatus.CANCELLED) {
+            throw new AppError(httpStatus.BAD_REQUEST, `Cannot transition from IN_TRANSIT to ${rideStatus}`);
+        }
+    } else if (ride.rideStatus === IRideStatus.COMPLETED || ride.rideStatus === IRideStatus.CANCELLED) {
+        throw new AppError(httpStatus.BAD_REQUEST, `Cannot change ride status from ${ride.rideStatus}`);
+    }
+
+    ride.rideStatus = rideStatus;
+
+    if (rideStatus === IRideStatus.ACCEPTED) {
+        ride.timestampsLog.acceptedAt = new Date();
+    } else if (rideStatus === IRideStatus.PICKED_UP) {
+        ride.timestampsLog.pickedUpAt = new Date();
+    } else if (rideStatus === IRideStatus.IN_TRANSIT) {
+        ride.timestampsLog.inTransitAt = new Date();
+    } else if (rideStatus === IRideStatus.COMPLETED) {
+        ride.timestampsLog.completedAt = new Date();
+    } else if (rideStatus === IRideStatus.CANCELLED) {
+        ride.timestampsLog.cancelledAt = new Date();
+        ride.cancelledBy = new Types.ObjectId(decodedToken.userId);
+        if (cancelReason) ride.cancelReason = cancelReason;
+    }
+
+    await ride.save();
+
+    return await Ride.findById(rideId)
+        .populate('riderId', 'name email phone')
+        .populate('driverId');
+};
+
+
+
+const getAllRidesForAdmin = async (query: Record<string, string>, decodedToken: JwtPayload) => {
     if (decodedToken.role === Role.ADMIN || Role.SUPER_ADMIN) {
         const queryBuilder = new QueryBuilder(Ride.find(), query);
         const rides = await queryBuilder.filter().sort().fields().paginate();
@@ -168,19 +231,6 @@ const getAllRidesForAdminAndDriver = async (query: Record<string, string>, decod
         ]);
         return { meta: meta, data: data };
     }
-
-    // Driver section start
-    const queryBuilder = new QueryBuilder(
-        Ride.find({ driverId: decodedToken.userId }),
-        query
-    );
-    const rides = await queryBuilder.filter().sort().fields().paginate();
-    const [data, meta] = await Promise.all([
-        rides.build(),
-        queryBuilder.getMeta(),
-    ]);
-    return { meta: meta, data: data };
-    // Driver section end
 };
 
 const getSingleRideForRider = async (rideId: string, riderId: string) => {
@@ -202,7 +252,42 @@ const getSingleRideForRider = async (rideId: string, riderId: string) => {
 }
 
 
-// feedback
+const cancelRide = async (rideId: string, cancelReason: string, decodedToken: JwtPayload) => {
+    const ride = await Ride.findById(rideId);
+    if (!ride) {
+        throw new AppError(httpStatus.NOT_FOUND, "Ride not found");
+    }
+    if (ride.rideStatus === IRideStatus.COMPLETED || ride.rideStatus === IRideStatus.CANCELLED) {
+        throw new AppError(httpStatus.BAD_REQUEST, "Cannot cancel a completed or already cancelled ride");
+    }
+
+    if (decodedToken.role === Role.RIDER) {
+        if (ride.riderId.toString() !== decodedToken.userId) {
+            throw new AppError(httpStatus.FORBIDDEN, "You can only cancel your own rides");
+        }
+        if (ride.rideStatus === IRideStatus.PICKED_UP || ride.rideStatus === IRideStatus.IN_TRANSIT) {
+            throw new AppError(httpStatus.BAD_REQUEST, "Cannot cancel ride after pickup");
+        }
+    } else if (decodedToken.role === Role.DRIVER) {
+        const driver = await Driver.findOne({ userId: decodedToken.userId });
+        if (!driver || ride.driverId?.toString() !== driver._id?.toString()) {
+            throw new AppError(httpStatus.FORBIDDEN, "You can only cancel your assigned rides");
+        }
+    }
+
+    ride.rideStatus = IRideStatus.CANCELLED;
+    ride.timestampsLog.cancelledAt = new Date();
+    ride.cancelledBy = new Types.ObjectId(decodedToken.userId);
+    ride.cancelReason = cancelReason;
+
+    await ride.save();
+
+    return await Ride.findById(rideId)
+        .populate('riderId', 'name email phone')
+        .populate('driverId');
+};
+
+
 
 const giveFeedbackAndRating = async (rideId: string, userId: string, feedback: string, rating: number) => {
     try {
@@ -260,9 +345,12 @@ const giveFeedbackAndRating = async (rideId: string, userId: string, feedback: s
 
 export const rideService = {
     requestForRide,
-    // updateRideStatus,
     getAllRidesForRider,
-    getAllRidesForAdminAndDriver,
+    getAllRidesForAdmin,
     getSingleRideForRider,
-    giveFeedbackAndRating
+    giveFeedbackAndRating,
+    getAvailableRides,
+    driverAcceptRide,
+    updateRideStatus,
+    cancelRide
 };
