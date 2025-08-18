@@ -8,70 +8,64 @@ import { seedSuperAdmin } from "./app/utils/seedSuperAdmin";
 
 let server: Server;
 
-// Start the server and connect to the database
+// Start the server and connect to the database (only for local/dev)
 const startServer = async () => {
   try {
     await mongoose.connect(envVars.DB_URL);
-    console.log("Connected To MongoDb Successfully");
+    console.log("✅ Connected To MongoDb Successfully");
+
+    await connectRedis();
+    await seedSuperAdmin();
+
     server = app.listen(envVars.PORT, () => {
-      console.log(`Server is Running On Port ${envVars.PORT}`);
+      console.log(`🚀 Server is Running Locally On Port ${envVars.PORT}`);
     });
   } catch (error) {
-    console.log(error);
+    console.log("❌ Server startup error:", error);
   }
 };
 
-// Immediately invoke the startServer function to start the server
-(async () => {
-  await connectRedis();
-  await startServer();
-  await seedSuperAdmin();
-})();
+// Run only if not on Vercel (NODE_ENV !== "production")
+if (process.env.NODE_ENV !== "production") {
+  startServer();
+}
+
+// Export app for Vercel serverless function
+export default app;
 
 // Handle graceful shutdown
 process.on("SIGTERM", () => {
   console.log("Signal Termination Happened..! Server Is Shutting Down..!");
   if (server) {
-    server.close(() => {
-      process.exit(1);
-    });
+    server.close(() => process.exit(1));
+  } else {
+    process.exit(1);
   }
-
-  process.exit(1);
 });
 
-// Handle manual shutdown and unhandled rejections
 process.on("SIGINT", () => {
   console.log("Signal Interrupt Happened..! Server Is Shutting Down..!");
   if (server) {
-    server.close(() => {
-      process.exit(1);
-    });
+    server.close(() => process.exit(1));
+  } else {
+    process.exit(1);
   }
-
-  process.exit(1);
 });
 
-// Handle unhandled rejections and uncaught exceptions
 process.on("unhandledRejection", () => {
   console.log("Unhandled Rejection Happened..! Server Is Shutting Down..!");
   if (server) {
-    server.close(() => {
-      process.exit(1);
-    });
+    server.close(() => process.exit(1));
+  } else {
+    process.exit(1);
   }
-
-  process.exit(1);
 });
 
-// Handle uncaught exceptions
 process.on("uncaughtException", (err) => {
   console.log("Uncaught Exception Happened..! Server Is Shutting Down..!", err);
   if (server) {
-    server.close(() => {
-      process.exit(1);
-    });
+    server.close(() => process.exit(1));
+  } else {
+    process.exit(1);
   }
-
-  process.exit(1);
 });
