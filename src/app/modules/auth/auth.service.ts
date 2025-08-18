@@ -5,7 +5,6 @@ import AppError from "../../errorHelpers/AppError";
 import { IAuthProvider, IsActive, IUser } from "../user/user.interface";
 import httpStatus from "http-status-codes";
 import { User } from "../user/user.model";
-import { generateToken, verifyToken } from "../../utils/jwt";
 import { envVars } from "../../config/env";
 import {
   createNewAccessTokenWithRefreshToken,
@@ -83,6 +82,7 @@ const setPassword = async (userId: string, plainPassword: string) => {
 
   await user.save();
 };
+
 const forgotPassword = async (email: string) => {
   const isUserExist = await User.findOne({ email });
 
@@ -127,6 +127,7 @@ const forgotPassword = async (email: string) => {
     },
   });
 };
+
 const resetPassword = async (
   payload: Record<string, any>,
   decodedToken: JwtPayload
@@ -150,7 +151,6 @@ const resetPassword = async (
   await isUserExist.save();
 };
 export const AuthServices = {
-  // credentialsLogin,
   getNewAccessToken,
   changePassword,
   resetPassword,
