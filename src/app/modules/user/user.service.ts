@@ -6,6 +6,8 @@ import { JwtPayload } from "jsonwebtoken";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { userSearchableFields } from "./user.constant";
 import AppError from "../../errorHelpers/AppError";
+import { Ride } from "../ride/ride.model";
+import { Driver } from "../driver/driver.model";
 
 // Create User
 const createUser = async (payload: Partial<IUser>) => {
@@ -109,6 +111,23 @@ const getMe = async (userId: string) => {
   };
 };
 
+const getAllStats = async () => {
+  const totalUsers = await User.countDocuments();
+  const totalDrivers = await Driver.countDocuments();
+  const totalRides = await Ride.countDocuments();
+  const completedRides = await Ride.countDocuments({ rideStatus: "COMPLETED" });
+  const activeRides = await Ride.countDocuments({
+    status: { $in: ["REQUESTED", "ACCEPTED", "PICKED_UP", "IN_TRANSIT"] },
+  });
+
+  return {
+    totalUsers,
+    totalDrivers,
+    totalRides,
+    completedRides,
+    activeRides,
+  };
+};
 
 const getAllUsers = async (query: Record<string, string>) => {
   const queryBuilder = new QueryBuilder(User.find(), query);
@@ -136,4 +155,5 @@ export const userServices = {
   updateUser,
   getSingleUser,
   getMe,
+  getAllStats
 };

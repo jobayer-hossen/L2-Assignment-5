@@ -72,6 +72,18 @@ const getSingleUser = catchAsync(
   }
 );
 
+const getAllStats = catchAsync(
+  async (eq: Request, res: Response, next: NextFunction) => {
+    const result = await userServices.getAllStats();
+    sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "System statistics retrieved",
+      data: result,
+    });
+  }
+);
+
 const getMe = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const decodedToken = req.user as JwtPayload;
@@ -91,4 +103,5 @@ export const userControllers = {
   updateUser,
   getMe,
   getSingleUser,
+  getAllStats
 };
