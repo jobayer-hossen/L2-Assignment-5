@@ -6,6 +6,7 @@ import { Driver } from "./driver.model";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { JwtPayload } from "jsonwebtoken";
 import { Role } from "../user/user.interface";
+import { Ride } from "../ride/ride.model";
 
 const createDriver = async (payload: Partial<IDriver>) => {
   const user = await User.findById(payload.userId);
@@ -149,11 +150,28 @@ const updateWonDriverProfile = async (userId: string, payload: Partial<IDriver>,
 };
 
 
+const getDriversRides = async (userId: string) => {
+ 
+  const driver = await Driver.findOne({ userId });
+  if (!driver) {
+    throw new AppError(httpStatus.NOT_FOUND, "Driver not found");
+  }
+  
+  const rides = await Ride.find({ driverId: driver._id })
+    .sort({ createdAt: -1 });
+
+  return {
+    data: rides,
+    count: rides.length,
+  };
+};
+
 export const DriverServices = {
   getMe,
   createDriver,
   getAllDrivers,
   getSingleDriver,
   updateDriverStatus,
-  updateWonDriverProfile
+  updateWonDriverProfile,
+  getDriversRides,
 };

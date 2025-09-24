@@ -21,6 +21,12 @@ router.get(
   userControllers.getAllUsers
 );
 
+router.get(
+  "/stats",
+  checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
+  userControllers.getAllStats
+);
+
 router.patch(
   "/:id",
   validateRequest(updateUserZodSchema),

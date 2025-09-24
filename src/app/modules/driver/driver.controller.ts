@@ -84,6 +84,18 @@ const updateWonDriverProfile = catchAsync(async (req: Request, res: Response) =>
   });
 });
 
+const getDriversRides = catchAsync(async (req, res) => {
+  const user = req.user as JwtPayload;
+  const userId = user.userId; 
+  const result = await DriverServices.getDriversRides(userId);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Completed rides retrieved successfully",
+    data: result.data,
+  });
+});
 
 export const DriverControllers = {
   getMe,
@@ -91,5 +103,6 @@ export const DriverControllers = {
   getAllDrivers,
   getSingleDriver,
   updateDriverStatus,
-  updateWonDriverProfile
+  updateWonDriverProfile,
+  getDriversRides
 };
