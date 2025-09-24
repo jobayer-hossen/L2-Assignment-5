@@ -251,6 +251,26 @@ const getSingleRideForRider = async (rideId: string, riderId: string) => {
     }
 }
 
+const getSingleRideForDriver = async (rideId: string, userId: string) => {
+    const ride = await Ride.findById(rideId);
+
+    if (!ride) {
+        throw new AppError(httpStatus.NOT_FOUND, "Ride Information Not Found");
+    }
+
+    const driver = await Driver.findOne({ userId });
+    if (!driver) {
+        throw new AppError(httpStatus.NOT_FOUND, "Driver not found");
+    }
+
+    if (ride.driverId?.toString() !== driver._id.toString()) {
+        throw new AppError(httpStatus.FORBIDDEN, "This Ride Is Not Yours!");
+    }
+
+    return ride;
+};
+
+
 
 const cancelRide = async (rideId: string, cancelReason: string, decodedToken: JwtPayload) => {
     const ride = await Ride.findById(rideId);
@@ -268,11 +288,6 @@ const cancelRide = async (rideId: string, cancelReason: string, decodedToken: Jw
         if (ride.rideStatus === IRideStatus.PICKED_UP || ride.rideStatus === IRideStatus.IN_TRANSIT) {
             throw new AppError(httpStatus.BAD_REQUEST, "Cannot cancel ride after pickup");
         }
-    } else if (decodedToken.role === Role.DRIVER) {
-        const driver = await Driver.findOne({ userId: decodedToken.userId });
-        if (!driver || ride.driverId?.toString() !== driver._id?.toString()) {
-            throw new AppError(httpStatus.FORBIDDEN, "You can only cancel your assigned rides");
-        }
     }
 
     ride.rideStatus = IRideStatus.CANCELLED;
@@ -289,7 +304,7 @@ const cancelRide = async (rideId: string, cancelReason: string, decodedToken: Jw
 
 
 
-const giveFeedbackAndRating = async (rideId: string, userId: string, feedback: string, rating: number) => {
+const giveFeedback = async (rideId: string, userId: string, feedback: string) => {
     try {
         const ride = await Ride.findById(rideId);
         if (!ride) throw new AppError(httpStatus.NOT_FOUND, "Ride not found");
@@ -297,17 +312,13 @@ const giveFeedbackAndRating = async (rideId: string, userId: string, feedback: s
         if (!ride.driverId) throw new AppError(httpStatus.BAD_REQUEST, "No driver assigned to this ride");
 
         if (ride.riderId.toString() !== userId) {
-            throw new AppError(httpStatus.BAD_REQUEST, "You are not authorized to rate this ride");
+            throw new AppError(httpStatus.BAD_REQUEST, "You are not authorized to give feedback on this ride");
         }
 
-        if (ride.rating) throw new AppError(httpStatus.BAD_REQUEST, "Feedback already submitted");
+        if (ride.feedback) throw new AppError(httpStatus.BAD_REQUEST, "Feedback already submitted");
 
         if (ride.rideStatus !== IRideStatus.COMPLETED) {
             throw new AppError(httpStatus.BAD_REQUEST, "Feedback allowed only for completed rides");
-        }
-
-        if (rating < 1 || rating > 5) {
-            throw new AppError(httpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
         }
 
         const rider = await User.findById(ride.riderId);
@@ -315,25 +326,14 @@ const giveFeedbackAndRating = async (rideId: string, userId: string, feedback: s
             throw new AppError(httpStatus.BAD_REQUEST, "User is not allowed to submit feedback");
         }
 
+
         ride.feedback = feedback;
-        ride.rating = rating;
         await ride.save();
-
-        const ratedRides = await Ride.find({
-            driverId: ride.driverId,
-            rating: { $exists: true },
-        });
-
-        const totalRatings = ratedRides.length;
-        const totalSum = ratedRides.reduce((sum, r) => sum + (r.rating || 0), 0);
-        const averageRating = totalRatings === 0 ? 0 : parseFloat((totalSum / totalRatings).toFixed(1));
-
-        await Driver.findByIdAndUpdate(ride.driverId, { rating: averageRating });
 
         return {
             rideId: ride._id,
             driverId: ride.driverId,
-            averageRating,
+            feedback: ride.feedback,
         };
     } catch (error) {
         console.error("Error giving feedback:", error);
@@ -343,14 +343,16 @@ const giveFeedbackAndRating = async (rideId: string, userId: string, feedback: s
 
 
 
+
 export const rideService = {
     requestForRide,
     getAllRidesForRider,
     getAllRidesForAdmin,
     getSingleRideForRider,
-    giveFeedbackAndRating,
+    giveFeedback,
     getAvailableRides,
     driverAcceptRide,
     updateRideStatus,
-    cancelRide
+    cancelRide,
+    getSingleRideForDriver
 };

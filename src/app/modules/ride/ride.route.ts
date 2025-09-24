@@ -35,6 +35,11 @@ router.get("/my-ride/:id",
   rideControllers.getSingleRideForRider
 )
 
+router.get("/driver/rides/:id",
+  checkAuth(Role.DRIVER),
+  rideControllers.getSingleRideForDriver
+);
+
 router.patch(
   "/accept/:rideId",
   checkAuth(Role.DRIVER),
@@ -59,7 +64,7 @@ router.post(
   "/feedback/:rideId",
   checkAuth(...Object.values(Role)),
   validateRequest(rideFeedbackZodSchema),
-  rideControllers.giveFeedbackAndRating
+  rideControllers.giveFeedback
 );
 
 export const RideRoutes = router;

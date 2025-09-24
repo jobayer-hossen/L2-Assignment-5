@@ -33,6 +33,12 @@ router.get(
   DriverControllers.getMe
 );
 
+router.get(
+  "/completed-ride",
+  checkAuth(Role.DRIVER),
+  DriverControllers.getDriversRides
+);
+
 // driver update (won)
 router.patch(
   "/update-my-driver-profile",
@@ -49,13 +55,13 @@ router.post(
   DriverControllers.updateDriverStatus
 );
 
-
 // driver get single (admin)
 router.get(
   "/:id",
   checkAuth(Role.ADMIN),
   DriverControllers.getSingleDriver
 );
+
 
 
 
